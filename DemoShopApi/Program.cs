@@ -6,6 +6,7 @@ using System.Text;
 using DemoShopApi.Hubs;
 using DemoShopApi.services;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.OpenApi.Models;
 
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 var builder = WebApplication.CreateBuilder(args);
@@ -16,7 +17,31 @@ builder.Services.AddDbContext<DaigoContext>(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // 定義安全設定
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "請輸入 'Bearer' [空格] 加上你的 JWT Token。例如：'Bearer abc123def'"
+    });
+
+    // 讓所有 API 預設都要套用這個安全需求
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            new string[] {}
+        }
+    });
+});
 
 // 3. 註冊 JWT 驗證服務
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

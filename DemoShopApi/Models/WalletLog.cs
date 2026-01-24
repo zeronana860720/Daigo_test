@@ -18,4 +18,10 @@ public partial class WalletLog
     public decimal EscrowBalance { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    // ✨ 新增：對應資料庫的 service_code
+    public string? ServiceCode { get; set; }
+
+    // ✨ 新增：對應資料庫的 description (用來存委託標題)
+    public string? Description { get; set; }
 }

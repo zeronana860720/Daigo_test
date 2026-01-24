@@ -336,6 +336,8 @@ public partial class DaigoContext : DbContext
             entity.Property(e => e.Balance).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.EscrowBalance).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.Uid).HasMaxLength(450);
+            entity.Property(e => e.ServiceCode).HasColumnName("service_code");
+            entity.Property(e => e.Description).HasColumnName("description");
         });
 
         OnModelCreatingPartial(modelBuilder);

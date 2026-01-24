@@ -33,39 +33,21 @@ namespace API.Controllers
             // 1. 驗證資料格式
             if (!ModelState.IsValid)
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    errors = ModelState
-                        .Where(x => x.Value.Errors.Count > 0)
-                        .ToDictionary(k => k.Key, v => v.Value.Errors.Select(e => e.ErrorMessage).ToArray())
-                });
+                return BadRequest(new { success = false, errors = ModelState });
             }
 
-            // 2. 取得使用者資訊 (從 JWT Token 抓取)
+            // 2. 取得使用者資訊
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { success = false, message = "無效的驗證資訊，請重新登入！" });
-            }
+            if (string.IsNullOrEmpty(userId)) return Unauthorized(new { success = false, message = "請重新登入" });
 
             var user = await _proxyContext.Users.FirstOrDefaultAsync(u => u.Uid == userId);
+            if (user == null) return Unauthorized(new { success = false, message = "找不到使用者" });
 
-            if (user == null)
-            {
-                return Unauthorized(new { success = false, message = "找不到該使用者，請重新登入！" });
-            }
-
-            // 3. 後端安全匯率計算
-            var rates = new Dictionary<string, decimal> {
-                { "JPY", 0.201m }, { "TWD", 1.0m }, { "USD", 32.5m }, { "EUR", 35.2m }, { "KRW", 0.024m }
-            };
+            // 3. 匯率與費用計算
+            var rates = new Dictionary<string, decimal> { { "JPY", 0.201m }, { "TWD", 1.0m }, { "USD", 32.5m } };
             decimal currentRate = rates.ContainsKey(dto.Currency ?? "TWD") ? rates[dto.Currency!] : 1.0m;
-
             decimal subtotalTwd = (dto.Price * dto.Quantity) * currentRate;
-            decimal feeRate = 0.1m; 
-            decimal priceFeeTwd = Math.Round(subtotalTwd * feeRate, 0, MidpointRounding.AwayFromZero);
+            decimal priceFeeTwd = Math.Round(subtotalTwd * 0.1m, 0, MidpointRounding.AwayFromZero);
             decimal totalPriceTwd = Math.Round(subtotalTwd + priceFeeTwd, 0, MidpointRounding.AwayFromZero);
 
             // 4. 餘額檢查
@@ -74,13 +56,13 @@ namespace API.Controllers
                 return BadRequest(new { success = false, code = "BALANCE_NOT_ENOUGH", message = "錢包餘額不足" });
             }
 
-            // 5. 資料庫交易開始
             using var transaction = await _proxyContext.Database.BeginTransactionAsync();
             try
             {
-                user.Balance -= totalPriceTwd; // 扣錢
+                // 5. 扣錢
+                user.Balance -= totalPriceTwd;
 
-                // 圖片路徑處理
+                // 6. 處理圖片路徑
                 string? imageUrl = null;
                 string? absolutePath = null;
                 if (dto.Image != null && dto.Image.Length > 0)
@@ -90,7 +72,7 @@ namespace API.Controllers
                     imageUrl = $"/uploads/{fileName}";
                 }
 
-                // 6. 建立委託實體 (注意 Place 的層級)
+                // 7. ✨ 先建立委託實體 (解決變測宣告順序問題)
                 var commission = new Commission
                 {
                     CreatorId = userId,
@@ -107,10 +89,6 @@ namespace API.Controllers
                     Status = "審核中",
                     CreatedAt = DateTime.Now,
                     ImageUrl = imageUrl,
-
-                    // ✨ 這裡就是解決紅字的關鍵！
-                    // 不要直接寫 GooglePlaceId = dto.google_place_id
-                    // 必須包在 new CommissionPlace 裡面
                     Place = new CommissionPlace
                     {
                         GooglePlaceId = dto.google_place_id ?? "",
@@ -121,60 +99,51 @@ namespace API.Controllers
                     }
                 };
 
+                // 8. ✨ 產生 ServiceCode (這步跑完，commission.ServiceCode 才有值)
                 await _CreateCode.CreateCommissionCodeAsync(commission);
+
+                // 9. ✨ 建立扣款紀錄日誌 (這時可以使用 commission 的屬性了)
+                var walletLog = new WalletLog
+                {
+                    Uid = userId,
+                    Action = "CommissionPay",
+                    Amount = -totalPriceTwd,      // 支出存負值
+                    Balance = user.Balance ?? 0m, // 扣款後的餘額
+                    EscrowBalance = totalPriceTwd,
+                    ServiceCode = commission.ServiceCode,
+                    Description = commission.Title, // 成功抓到 Title 囉！
+                    CreatedAt = DateTime.Now
+                };
+
+                _proxyContext.WalletLogs.Add(walletLog);
                 _proxyContext.Commissions.Add(commission);
                 await _proxyContext.SaveChangesAsync();
 
-                // 7. 記錄歷史
-                var jsonOptions = new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+                // 10. 記錄歷史 (CommissionHistory)
                 var history = new CommissionHistory
                 {
                     CommissionId = commission.CommissionId,
                     Action = "CREATE",
                     ChangedBy = userId,
-                    ChangedAt = DateTime.Now,
-                    NewData = JsonSerializer.Serialize(new
-                    {
-                        commission.Title,
-                        commission.Price,
-                        commission.Currency,
-                        commission.Quantity,
-                        TwdTotal = totalPriceTwd,
-                        FormattedAddress = commission.Place?.FormattedAddress
-                    }, jsonOptions)
+                    NewData = "建立新委託"
                 };
                 _proxyContext.CommissionHistories.Add(history);
                 await _proxyContext.SaveChangesAsync();
 
-                // 8. 儲存檔案
+                // 11. 儲存實體檔案
                 if (dto.Image != null && absolutePath != null)
                 {
-                    var folder = Path.GetDirectoryName(absolutePath);
-                    if (!Directory.Exists(folder)) Directory.CreateDirectory(folder!);
                     using var stream = new FileStream(absolutePath, FileMode.Create);
                     await dto.Image.CopyToAsync(stream);
                 }
 
                 await transaction.CommitAsync();
-
-                return Ok(new
-                {
-                    success = true,
-                    data = new
-                    {
-                        serviceCode = commission.ServiceCode,
-                        originalPrice = commission.Price,
-                        currency = commission.Currency,
-                        totalPriceTwd = commission.EscrowAmount,
-                        status = commission.Status,
-                        formattedAddress = commission.Place?.FormattedAddress
-                    }
-                });
+                return Ok(new { success = true, data = new { serviceCode = commission.ServiceCode } });
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                return StatusCode(500, new { success = false, message = "建立委託失敗", error = ex.Message });
+                return StatusCode(500, new { success = false, message = "建立失敗", error = ex.Message });
             }
         }
 
@@ -748,6 +717,76 @@ namespace API.Controllers
             await tx.CommitAsync();
 
             return Ok(new { success = true, message = "訂單已取消並退款" });
+        }
+        
+        // 刪除委託
+        [HttpDelete("{serviceCode}")]
+        public async Task<IActionResult> DeleteCommission(string serviceCode)
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            using var transaction = await _proxyContext.Database.BeginTransactionAsync();
+            try
+            {
+                // 1. 抓取委託時，順便把「歷史紀錄」和「地點」一起抓出來
+                var commission = await _proxyContext.Commissions
+                    .Include(c => c.Place)
+                    .Include(c => c.CommissionHistories) // ✨ 新增這行：抓出歷史紀錄
+                    .FirstOrDefaultAsync(c => c.ServiceCode == serviceCode && c.CreatorId == userId);
+
+                if (commission == null) return NotFound(new { success = false, message = "找不到委託 (´;ω;`)" });
+
+                // 2. 退款邏輯 (維持不變)
+                var user = await _proxyContext.Users.FirstOrDefaultAsync(u => u.Uid == userId);
+                if (user != null && commission.EscrowAmount.HasValue)
+                {
+                    decimal refundAmount = commission.EscrowAmount.Value;
+    
+                    // 1. 更新使用者餘額
+                    user.Balance += refundAmount;
+
+                    // 2. ✨ 新增錢包日誌紀錄
+                    var walletLog = new WalletLog
+                    {
+                        Uid = userId!,
+                        Action = "CommissionDelete", // 讓前端可以判斷這是刪除退款
+                        Amount = refundAmount,
+                        Balance = user.Balance??0m,       // 紀錄退款後的身家財產
+                        EscrowBalance = 0m,            // 該筆交易已結束，押金變動設為 0
+                        CreatedAt = DateTime.Now,
+                        ServiceCode = commission.ServiceCode,
+                        Description = commission.Title,
+                    };
+
+                    _proxyContext.WalletLogs.Add(walletLog);
+                }
+
+                // 3. ✨ 先刪除「歷史紀錄」
+                if (commission.CommissionHistories.Any())
+                {
+                    _proxyContext.CommissionHistories.RemoveRange(commission.CommissionHistories);
+                }
+
+                // 4. 刪除「地點」與「委託主體」
+                var relatedPlace = commission.Place;
+                _proxyContext.Commissions.Remove(commission);
+        
+                if (relatedPlace != null)
+                {
+                    _proxyContext.CommissionPlaces.Remove(relatedPlace);
+                }
+
+                await _proxyContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { success = true, message = "全部清理乾淨囉！金額也退回了✨" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                // 如果還是失敗，我們可以看更詳細的錯誤：ex.InnerException?.Message
+                return StatusCode(500, new { success = false, message = "刪除失敗", error = ex.InnerException?.Message ?? ex.Message });
+            }
         }
 
     }

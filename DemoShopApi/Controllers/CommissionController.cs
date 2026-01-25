@@ -76,6 +76,7 @@ namespace DemoShopApi.Controllers
                                                    c.CreatedAt, //這委託建立的時間
                                                    c.Deadline,  // 截止時間
                                                    c.Status,       // 狀態
+                                                   c.Currency,
                                                    // ✨ 關鍵改動：透過 Place 導覽屬性抓取經緯度
                                                    // 假設你在 C# Model 中將該關聯屬性命名為 Place
                                                    Latitude = c.Place != null ? c.Place.Latitude : (decimal?)null,

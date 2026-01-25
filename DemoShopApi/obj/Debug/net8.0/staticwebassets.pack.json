@@ -1,8 +1,16 @@
 {
   "Files": [
     {
+      "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/receipts/0204ac20-9f64-4e4c-b7e3-ed5ae9565f1e.png",
+      "PackagePath": "staticwebassets/receipts/0204ac20-9f64-4e4c-b7e3-ed5ae9565f1e.png"
+    },
+    {
       "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/receipts/dba42ae4-6324-4239-a496-f2cf47b43485.png",
       "PackagePath": "staticwebassets/receipts/dba42ae4-6324-4239-a496-f2cf47b43485.png"
+    },
+    {
+      "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/uploads/150fabe7-17bc-4e8d-a767-ecee977ac70c.png",
+      "PackagePath": "staticwebassets/uploads/150fabe7-17bc-4e8d-a767-ecee977ac70c.png"
     },
     {
       "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/uploads/28efe164-253d-4031-b4f6-1c04a6f69f32.png",
@@ -15,6 +23,10 @@
     {
       "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/uploads/38c57b53-ca60-47bb-8bfa-cefdb03ea728.png",
       "PackagePath": "staticwebassets/uploads/38c57b53-ca60-47bb-8bfa-cefdb03ea728.png"
+    },
+    {
+      "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/uploads/53a95298-9e6e-4874-b0b8-d8d4b1d0012f.png",
+      "PackagePath": "staticwebassets/uploads/53a95298-9e6e-4874-b0b8-d8d4b1d0012f.png"
     },
     {
       "Id": "/Users/momo/RiderProjects/DemoShopApi/DemoShopApi/wwwroot/uploads/5fc51fd8-d973-4cd1-bcb9-6296d2149548.png",

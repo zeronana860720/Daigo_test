@@ -91,6 +91,7 @@ namespace API.Controllers
                     ImageUrl = imageUrl,
                     Place = new CommissionPlace
                     {
+                        Name = dto.Location,
                         GooglePlaceId = dto.google_place_id ?? "",
                         FormattedAddress = dto.formatted_address ?? "",
                         Latitude = dto.latitude ?? 0m,

@@ -54,7 +54,7 @@ namespace DemoShopApi.Controllers
                     Status = c.Status,
                     Quantity = c.Quantity ?? 0,
                     Price = c.Price ?? 0,
-                    Location = p.Name ?? "未設定地點", 
+                    Location = p.Name ?? p.FormattedAddress?? "未設定地點", 
                     TotalAmount = ((c.Price ?? 0) * (c.Quantity ?? 0)) + (c.Fee ?? 0),
                     CreatedAt = c.CreatedAt,
                     EndAt = c.Deadline,

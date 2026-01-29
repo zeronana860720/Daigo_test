@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DemoShopApi.Models;
 using DemoShopApi.DTOs;
+using Microsoft.AspNetCore.Authorization;
 
 [ApiController]
 [Route("api/createstore")]
@@ -15,21 +17,38 @@ public class DemoShopApiController : ControllerBase
     {
         _db = db;
     }
+    private string GetCurrentSellerUid()
+    {
+        var sellerUid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-    [HttpPost] //  建立賣場
+        if (string.IsNullOrEmpty(sellerUid))
+        {
+            // 這裡你也可以選擇 return null，看你想怎麼處理
+            throw new UnauthorizedAccessException("找不到使用者 Uid，請確認已登入並帶入 JWT。");
+        }
+
+        return sellerUid;
+    }
+    [HttpGet("{sellerUid}/myseller")]
+    [Authorize]
+    [HttpPost] // 建立賣場
     public async Task<IActionResult> CreateStore([FromBody] CreateStoreDto dto)
     {
+        // 從 JWT 取得目前登入者的 Uid（賣家編號）
+        var sellerUid = GetCurrentSellerUid();
+
         var store = new Store
         {
-            SellerUid = dto.SellerUid,
+            SellerUid = sellerUid,      // 不再用 dto.SellerUid
             StoreName = dto.StoreName,
-            Status = 0,               // 草稿
+            Status = 0,                 // 草稿
             ReviewFailCount = 0,
             CreatedAt = DateTime.Now
         };
+
         // 計算此賣家已建立的賣場數量
         int storeCount = await _db.Stores
-            .CountAsync(s => s.SellerUid == dto.SellerUid);
+            .CountAsync(s => s.SellerUid == sellerUid); // 這裡也改成 token 的 Uid
 
         // 若已達上限（10 個）則拒絕
         if (storeCount >= 10)
@@ -49,16 +68,17 @@ public class DemoShopApiController : ControllerBase
         });
     }
 
-    
-    [HttpGet("my/{sellerUid}/mystore")]//  賣家查看自己的賣場
-    public async Task<IActionResult> GetMyStore(string sellerUid)
-    {
-        var stores = await _db.Stores
-            .Where(s => s.SellerUid == sellerUid)
-            .ToListAsync();
 
-        return Ok(stores);
-    }
+    
+    // [HttpGet("my/{sellerUid}/mystore")]//  賣家查看自己的賣場
+    // public async Task<IActionResult> GetMyStore(string sellerUid)
+    // {
+    //     var stores = await _db.Stores
+    //         .Where(s => s.SellerUid == sellerUid)
+    //         .ToListAsync();
+    //
+    //     return Ok(stores);
+    // }
 
     [HttpGet("forpublic")]   // 非會員對象可以查看賣場底下與商品
     public async Task<IActionResult> GetPublicStores()
@@ -71,7 +91,7 @@ public class DemoShopApiController : ControllerBase
           s.StoreName,
 
           Products = s.StoreProducts
-              .Where(p => p.Status == 3 && p.IsActive)
+              .Where(p => p.Status == 3)
               .Select(p => new
               {
                   p.ProductId,

@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DemoShopApi.Models;
 using DemoShopApi.DTOs;
+using Microsoft.AspNetCore.Authorization;
 
 
 [ApiController]
@@ -17,6 +19,18 @@ public class StoreReviewApiController : ControllerBase
         _db = db;
     }
     
+    private string GetCurrentSellerUid()
+    {
+        var sellerUid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(sellerUid))
+        {
+            // 這裡你也可以選擇 return null，看你想怎麼處理
+            throw new UnauthorizedAccessException("找不到使用者 Uid，請確認已登入並帶入 JWT。");
+        }
+
+        return sellerUid;
+    }
     [HttpGet("storepending")] // 第一波 撈賣場+第一波賞品資料
     public async Task<IActionResult> GetPendingStores()
     {

@@ -25,6 +25,9 @@ public partial class Store
     public DateTime? RecoverAt { get; set; }
     
     public string? StoreImage { get; set; }
+    // 新增描述
+    // ? -> 允許空值
+    public string? StoreDescription { get; set; }
 
     public virtual ICollection<BuyerOrder> BuyerOrders { get; set; } = new List<BuyerOrder>();
 

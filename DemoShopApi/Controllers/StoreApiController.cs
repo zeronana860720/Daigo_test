@@ -29,9 +29,9 @@ public class DemoShopApiController : ControllerBase
 
         return sellerUid;
     }
-    [HttpGet("{sellerUid}/myseller")]
+    
     [Authorize]
-    [HttpPost]
+    [HttpPost("my/store")]
     public async Task<IActionResult> CreateStore([FromForm] CreateStoreDto dto)
     {
         // 1. 取得目前登入者的 Uid (賣家身分確認)
@@ -73,6 +73,7 @@ public class DemoShopApiController : ControllerBase
             StoreName = dto.StoreName,
             StoreImage = savedPath,    // 這裡存的是剛才產生的路徑喔！
             Status = 0,               // 預設為草稿狀態
+            StoreDescription = dto.StoreDescription,
             ReviewFailCount = 0,
             CreatedAt = DateTime.Now
         };
@@ -85,7 +86,8 @@ public class DemoShopApiController : ControllerBase
         {
             store.StoreId,
             store.StoreName,
-            store.StoreImage
+            store.StoreImage,
+            store.StoreDescription
         });
     }
 
@@ -106,7 +108,9 @@ public class DemoShopApiController : ControllerBase
                 s.Status,
                 s.StoreImage,      // ⬅ 加這行
                 s.CreatedAt,
-                s.ReviewFailCount
+                s.ReviewFailCount,
+                s.StoreDescription
+                
             })
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync();

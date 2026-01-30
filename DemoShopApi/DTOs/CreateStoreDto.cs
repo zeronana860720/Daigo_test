@@ -11,5 +11,8 @@ namespace DemoShopApi.DTOs
         public string StoreName { get; set; } = null!;
         
         public IFormFile? StoreImage { get; set; }
+        
+        // 新增描述欄位
+        public string? StoreDescription { get; set; }
     }
 }

@@ -130,6 +130,8 @@ public partial class StoreDbContext : DbContext
             entity.Property(e => e.StoreImage)
                 .HasColumnName("store_image")
                 .HasMaxLength(500);
+            entity.Property(e => e.StoreDescription)
+                .HasColumnName("store_description");
 
         });
 

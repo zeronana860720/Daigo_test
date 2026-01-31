@@ -144,40 +144,67 @@ public class DemoShopApiController : ControllerBase
         return Ok(stores);
     }
 
-    [HttpGet("{storeId}/myproduct")] // 取得賣場詳細資料（包含底下所有商品）
-    public async Task<IActionResult> GetStoreDetail(int storeId)
+    [HttpGet("{storeId}/products")] // ✓ 改:更符合 RESTful 的路由
+    public async Task<IActionResult> GetStoreProducts(int storeId) // ✓ 改:更明確的方法名稱
     {
+        // 1️先確認賣場是否存在
         var store = await _db.Stores
-            .Where(s => s.StoreId == storeId)
-            .Select(s => new
-            {
-                s.StoreId,
-                s.StoreName,
-                s.Status,
-                s.ReviewFailCount,
-                s.CreatedAt,
-
-                Products = s.StoreProducts
-                    .OrderByDescending(p => p.CreatedAt)
-                    .Select(p => new
-                    {
-                        p.ProductId,
-                        p.ProductName,
-                        p.Price,
-                        p.Quantity,
-                        p.Status,
-                        p.IsActive,
-                        p.CreatedAt
-                    })
-                    .ToList()
-            })
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(s => s.StoreId == storeId);
 
         if (store == null)
             return NotFound("賣場不存在");
 
-        return Ok(store);
+        // 2️取得該賣場下的所有商品
+        var products = await _db.StoreProducts
+            .Where(p => p.StoreId == storeId)
+            .OrderByDescending(p => p.CreatedAt) // 最新的商品排在前面
+            .Select(p => new
+            {
+                // 商品基本資料
+                p.ProductId,
+                p.ProductName,
+                p.Description,
+                p.Price,
+                p.Quantity,
+                p.Category,
+                p.Location,
+            
+                // 商品狀態
+                p.Status,        // 0:草稿, 1:審核中, 2:審核失敗, 3:已發布
+                p.IsActive,      // true:上架, false:下架
+                p.RejectReason,  // 審核失敗原因
+            
+                // 圖片與時間
+                p.ImagePath,
+                p.EndDate,
+                p.CreatedAt,
+                p.UpdatedAt,
+            
+                // 新增:地點資訊 (如果有關聯的話)
+                // 透過導覽屬性跳到另一張表
+                Place = p.Place == null ? null : new
+                {
+                    p.Place.PlaceId,
+                    p.Place.Name,
+                    p.Place.FormattedAddress,
+                    p.Place.Latitude,
+                    p.Place.Longitude,
+                    p.Place.GooglePlaceId
+                }
+            })
+            .ToListAsync();
+
+        // 3️⃣ 回傳商品列表
+        return Ok(new
+        {
+            storeId = storeId,
+            storeName = store.StoreName,
+            storeStatus = store.Status,
+            totalProducts = products.Count,
+            products = products
+        });
     }
+
    
     // done 
     [HttpPost("{storeId}/submit")] //  賣家送審賣場
